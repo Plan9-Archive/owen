@@ -1,0 +1,15 @@
+Temporary instructions
+
+1. the contents are intended to be copied into the root of the usual Inferno tree
+	- we usually make a symbolic link /grid -> Inferno tree root on the hosted platform
+		eg ln -s home/forsyth/inferno /grid
+	  and scripts currently assume that
+	- the platform-specific scripts are under Inferno's grid/scripts directory
+	- worker nodes can have a much smaller installation than the normal Inferno tree
+		- we'll supply instructions for that shortly
+	- worker nodes need at least to have a private Inferno grid/slave directory
+2. the Dis executable files live in dis/owen; they are supplied ready-made and being portable will work on all Inferno platforms
+3. the application source is in appl/cmd/owen; {mk clean && mk install} in that directory to remake it
+   (as usual for Inferno applications)
+4. see the various .pdf files under doc
+	there is as yet no very good tutorial
