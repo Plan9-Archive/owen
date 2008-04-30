@@ -1,0 +1,28 @@
+#!/dis/sh
+load std arg sexprs
+opts=()
+root=/grid/slave
+
+fn usage {
+	echo 'usage: worker [-a schedaddr] [configfile]' >[1=2]
+	raise usage
+}
+ftest -e /net/cs || ndb/cs
+
+run /lib/sh/owen
+
+arg a+ {opts=-a $arg} - $*
+configfile=$*
+readconfig {
+	if {~ $attr root} {
+		root=$val
+	}
+}
+
+{
+	echo ++++++++++++++ start `{date}
+	if{! ftest -f /net/cs} {
+		ndb/cs
+	}
+	owen/worker $opts $configfile
+} >[2=1] | timestamp >> $root/log

@@ -1,0 +1,21 @@
+#!/bin/sh
+usage(){
+	echo 'usage: startsched [-r infernoroot] [-n] [configfile]' >&2
+	exit 1
+}
+root=/grid/inferno
+case $1 in
+-r)	case $2 in
+	"")	usage;;
+	*)	root="$2";;
+	esac
+	shift 2 ;;
+esac
+
+BIN=$root/Solaris/sparc/bin
+PATH=$BIN:$PATH export PATH
+
+$BIN/emu -r$root -pmain=128m -pheap=128m \
+	/dis/sh.dis -c \
+	'ndb/cs; /grid/scripts/Inferno/scheduler $*' "$@" \
+	2>&1 | tee -a $root/grid/master/log.emu

@@ -1,0 +1,42 @@
+#!/dis/sh
+load std arg
+
+fn usage {
+	echo 'usage: jobmonitor [configfile]' >[1=2]
+	raise usage
+}
+
+run /lib/sh/owen
+
+root=/grid/slave
+configfile=$*
+opts=()
+schedfsaddr=()
+readconfig {
+	if{~ $attr schedaddr}{
+		schedaddr=$val
+	}{~ $attr auth}{
+		if{~ $val 0}{
+			opts=($opts -A)
+		}
+	}{~ $attr root}{
+		root=$val
+	}{~ $attr keyfile}{
+		opts=($opts -k $val)
+	}{~ $attr refreshinterval}{
+		opts=($opts -a $val)
+	}{~ $attr schedfsaddr}{
+		schedfsaddr=$val
+	}
+}
+if{no $schedaddr}{
+		ifs=' 
+	'
+	schedaddr=`{cat $root/schedaddr}
+	if{no $schedaddr}{
+		echo no scheduler address found >[1=2]
+		raise error
+	}
+}
+
+owen/jobmonitor $opts $schedaddr $schedfsaddr

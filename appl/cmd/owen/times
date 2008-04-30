@@ -1,0 +1,12 @@
+times monitor
+	kicks taskmon whenever there's a change in status.
+	
+
+operations on times:
+	create
+	write
+	change
+	remove
+	read
+
+	

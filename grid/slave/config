@@ -1,0 +1,5 @@
+(auth "0")
+(schedaddr "tcp!pranzo!6678")
+(packages (inferno sched))
+(schedfsaddr "tcp!pranzo!1234")
+(fsauth "0")

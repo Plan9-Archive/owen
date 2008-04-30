@@ -1,0 +1,327 @@
+.TH OWEN-TASKGENERATOR 2
+.SH NAME
+taskgenerator \- generate tasks for the scheduler
+.SH SYNOPSIS
+.EX
+implement Taskgenerator;
+include "attributes.m";
+include "taskgenerator.m";
+
+Started, Error, Nomore: con ...;
+
+Readreq:   type (int, chan of array of byte, chan of int);
+Writereq:  type (array of byte, chan of string, chan of int);
+Finishreq: type (int, big, chan of string);
+
+init(jobid: string, state: string, args: list of string):
+        (chan of ref Taskgenreq, string);
+.EE
+.SH DESCRIPTION
+.IR Owen-scheduler (1)
+provides facilities to allow jobs to be distributed over many clients.
+The precise nature of a
+.I job
+is is not defined by the scheduler. It leaves that responsibility
+to a
+.I "task generator"
+that is started for the job.
+A task generator has the responsibility of dividing a job
+up into
+.IR owen-tasks ,
+parcelling up the necessary data for each client,
+and marshalling data when it is sent back.
+A task generator is defined with a
+.B Taskgenerator
+module, implemented according to the interface
+summarised above.
+.PP
+.B Init
+is called by the scheduler to start the taskgenerator.
+.I Jobid
+gives a string unique to the job;
+.I args
+gives the arguments that have been used to start the job
+(the first argument is the name of the taskgenerator).
+If the job has archived and then restored,
+.I state
+gives the task generator's internal state that has been
+returned as a result of the
+.B State
+(\fIq.v.\fP) message.
+.B Init
+returns a tuple, say
+.RI ( c ,\  err ).
+If initialisation fails,
+.I c
+should be nil, and
+.I err
+is an error string describing the problem;
+otherwise
+.I c
+should hold a channel that will be used by the scheduler to send requests to the task generator.
+A request is encapsulated by a
+.B Taskgenreq
+adt:
+.IP
+.EX
+Taskgenreq: adt {
+    pick {
+    Taskcount =>
+        reply:  chan of int;
+    Opendata =>
+        user:   string;
+        mode:   int;
+        read:   chan of Readreq;
+        write:  chan of Writereq;
+        clunk:  chan of int;
+        reply:  chan of string;
+    Start =>
+        tgid:   string;
+        failed: int;
+        spec:   ref Clientspec;
+        kick:   chan of int;
+        read:   chan of Readreq;
+        write:  chan of Writereq;
+        finish: chan of Finishreq;
+        reply:  chan of (int, string);
+    Reconnect =>
+        tgid:   string;
+        read:   chan of Readreq;
+        write:  chan of Writereq;
+        finish: chan of Finishreq;
+        reply:  chan of (int, string);
+    State =>
+        reply:  chan of string;
+    Complete =>
+    }
+};
+.EE
+.PP
+The scheduler sends a
+.B Taskcount
+message
+to discover the total number of tasks that comprise the job.
+The
+.B reply
+channel returns this number.
+For some job types, it might not be known
+in advance, in which case it is acceptable to return -1,
+but monitors of the scheduler will be unable to show
+overall progress information.
+.PP
+When the scheduler is running, it periodically dumps its state so that
+it can recover in the event of a crash or reboot. During this process,
+it will send the
+.B State
+message to get any internal state of the task generator that needs saving.
+The task generator's state should be returned on the
+.B reply
+channel.
+If the scheduler is restarted after a crash or reboot, this string
+may be passed as the
+.I state
+argument to
+.B init
+(see above).
+.PP
+When it wishes to hand out a new task to a client, the scheduler
+sends a
+.BR Start
+message, say
+.IR m ,
+to start a new instance of a task for a particular client.
+If
+.IB m . id
+is empty, then a new task should be started; otherwise it
+gives the id of a task that it wishes to restart.
+.IB M . tries
+gives the number of times that the task has been started before.
+.IB M . spec
+gives some information about the client that will run the
+task, in a
+.B Clientspec
+structure:
+.IP
+.EX
+Clientspec: adt {
+    addr:   string;
+    user:   string;
+    attrs:  Attributes->Attrs[string];
+};
+.EE
+.PP
+.IB M .spec.addr
+gives the network name of the node on which the client
+is running.
+.IB M .spec.attrs
+holds a set of attribute-value pairs giving
+information that the connected client has provided
+about itself, including attributes of the node
+on which it is running, such as processor type, speed, or memory.
+Any attribute is mentioned at most once.
+.PP
+If the task is successfully started,
+.IB m .start ,
+.IB m .write ,
+and
+.IB m .finish
+connect the running task to the task generator:
+.PP
+When the client tries to read some data, a tuple
+.BI ( "n, reply, flush" )
+is received on
+.IB m .read .
+.I N
+gives the number of bytes the client is trying to read;
+.I reply
+is a channel that is used to send the resulting data to the client
+(when it becomes available). Before sending the reply, however,
+the read must be committed to by sending a value on the
+.I flush
+channel. This send must be non-blocking (ie, use an
+.CW alt ):
+if it would have
+blocked, then the read request has been flushed
+and the task generator should act as if the read had not taken place
+and send
+.B nil
+on
+.IR reply ,
+otherwise it must immediately send the result of the read
+on
+.IR reply.
+.PP
+The
+.I write
+channel is analogous to the read channel:
+when a client tries to write some data, a tuple
+.BI ( "data, reply, flush" )
+is received on
+.IB m .write .
+.I Data
+holds the data that has been written;
+.I reply
+is used to return the status of the write (an error message if the write failed).
+The
+.I flush
+channel is used in the same way as for a read request as described above, except
+that when flushed, the special value ``\f5flushed\fP'' should be sent
+on the reply channel. It is not valid to reply with this error string otherwise.
+.PP
+When a client has disconnected from a task, a tuple
+.BI ( "first, time, reply" )
+is received on the
+.I finish
+channel.
+If the task has already successfully completed,
+.I first
+will be zero.
+.I Time
+gives the duration of the task, in milliseconds.
+The status of the task should be sent on the
+.I reply
+channel.
+If the status value is nil, the task is considered to have succeeded;
+otherwise the string gives the reason the task has failed.
+As a special case, if the task generator considers that the client
+might plausibly be currently executing the task (e.g. it has been
+sent all the data necessary for its computation), the string ``\f5disconnected\fP''
+may be sent, in which case the client is able to connect later and submit
+the results, resulting in a
+.B reconnect
+.RI ( "q.v." )
+request.
+.PP
+.IB M .reply
+holds a channel that should be used to send the status
+of the start request, a tuple, say (\fIstatus\fP, \fIs\fP).
+If the task has been successfully started, then
+.I status
+should contain the constant
+.BR Started ,
+and
+.I s
+should hold the id of the task that has been started.
+If the task generator is unwilling to start the task on the requested client,
+for whatever reason, then
+.I status
+should be
+.BR Error ,
+and
+.I s
+should hold the reason why.
+If the scheduler was trying to start a new task (i.e.
+.I id
+is nil), and there are no more new tasks to be started,
+then
+.I status
+should be
+.BR Nomore
+to indicate this fact.
+If the scheduler was trying to restart an old task,
+and the task generator wishes the task to be permanently
+failed,
+.I status
+should likewise be
+.BR Nomore ,
+and
+.I s
+should hold the reason why.
+.PP
+If a task has been marked as disconnected (see above), a client
+may reconnect to it, in which case the
+.B Reconnect
+message will be received,
+where
+.I id
+is the id of the task that has reconnected. The
+.IR read ,
+.IR write
+and
+.I finish
+channels are used as in the
+.B Start
+message above. If the reconnect is allowed,
+the value
+.B Started
+should be sent on the reply channel;
+if not, either
+.B Error
+or
+.B Nomore
+should be sent as appropriate, perhaps with a further diagnostic string.
+.PP
+When a task opens the job's
+.B data
+file, the task generator receives an
+.B Opendata
+message,
+giving the requesting user name, file open mode,
+channels carrying read and write requests and a
+.B clunk
+channel that receives a value when the file is closed.
+If the task generator allows the open,
+it should send a nil value on the
+.B reply
+channel, and prepare to handle values received on the other channels.
+To refuse the open, it should send a suitable diagnostic on the
+.B reply
+channel and discard the other values.
+.PP
+When all tasks have completed, a
+.B Complete
+message is received, to allow the task generator to clean up any intermediate data.
+When the job is finally deleted, a nil value will be received,
+allowing the task generator to tidy up, and stop
+any remaining processes.
+No further messages will be received.
+.PP
+The task generator may assume that two messages will not be outstanding
+concurrently.
+.SH SEE ALSO
+.IR owen-intro (1),
+.IR owen-scheduler (1),
+.IR owen-jobmonitor (1),
+.IR owen-nodemonitor (1),
+.IR owen-scheduler (4)
+.\" need attributes(2)

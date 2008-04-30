@@ -1,0 +1,6 @@
+jobconfig: Gold
+cmd: gold
+int 	'N Ligands' 	0 '' 	1 	500
+path 	'Sdf File' 		0 '' 	/grid/master/gold/data sdf
+path 	'Conf File' 	0 '' 	/grid/master/gold/data conf
+path 	'Protein File' 	0 '' 	/grid/master/gold/data pdb

@@ -1,0 +1,165 @@
+#!/dis/sh.dis
+load string std expr
+# memfs /grid/master/work
+outputpath=/usr/inferno/tmp
+
+fn mkjob {
+	stage := mkjob
+	echo ${quote $*} > args
+
+	if{~ $#* 0 1 2 3} {
+		error 'usage: mkjob imgaddr conaddr tray wait'
+	}
+	imgaddr := $1
+	conaddr := $2
+	tray := $3
+	wait := $4
+
+	# copy our job specific files into a known location
+	check mkdir jobfiles
+	echo $wait > jobfiles/wait
+
+
+	# determine the number of tasks
+	check mount -A $imgaddr /n/local
+	ntasks = `{ls /n/local/$tray/*/* | wc -l}
+	
+	echo $ntasks > ntasks
+	echo -n $imgaddr > imgaddr
+	echo -n $conaddr > conaddr
+	curdir=`{pwd}
+	cd /n/local
+	ls $tray/*/* > $curdir/tasklist
+	cd $curdir
+	echo -n > $outputpath/$tray
+	unmount /n/local
+	if {! ~ $ntasks 0} {
+		check mount -Ac $conaddr /n/local
+		if {ftest -d /n/local/$tray} {check rm -r /n/local/$tray}
+		check mkdir /n/local/$tray
+		unmount /n/local
+	}
+#	unmount /grid/master/work
+}
+
+fn mktask {
+	stage := mktask
+	or{~ $#* 1} {
+		error 'usage: mktask taskid'
+	}
+	taskid := $1
+	taskdir := prep$taskid
+
+	# create the task workspace
+	check mkdir $taskdir
+	check mkdir $taskdir/taskfiles
+
+}
+
+fn runtask {
+	stage := runtask
+	and{~ $#* 0 1} {error 'usage: runtask taskid runid attrs nodeattrs'}
+	(taskid runid attrs nodeattrs) := $*
+	taskdir := prep$taskid
+	rundir := $taskdir/run.$runid
+
+	check mkdir $rundir
+
+	# send files
+	check bind -b jobfiles $rundir
+	check bind -b /grid/master/image $rundir
+	check bind -b $taskdir/taskfiles $rundir
+
+	imgaddr=`{cat imgaddr}
+	check mount -A $imgaddr /n/local
+	check memfs -a $rundir
+	{i=0; for (d in `{cat tasklist}) {
+		if {~ $i $taskid} {
+			cp /n/local/$d $rundir/image
+			echo -n $d > $taskdir/taskfiles/path
+		}
+		i=${expr $i 1 +}
+	}}
+	check unmount /n/local
+	
+	check cd $rundir
+	check puttar .
+}
+
+fn submit {
+	stage := submit
+	or{~ $#* 2} {error 'usage: submit taskid runid'}
+	(taskid runid) := $*
+	rundir := prep$taskid/run.$runid
+	or {ftest -d $rundir} {mkdir $rundir}
+	check cd $rundir
+	check gettar -v >[1=2]
+	echo gettar did finish with status $status >[1=2]
+	status=''
+}
+
+fn endtask {
+	stage := endtask
+	or{~ $#* 2} {error 'usage: endtask taskid runid'}
+	(taskid runid) := $*
+	taskdir := prep$taskid
+
+	# NOTE: the scheduler is locked during execution of this script
+	# so tasks that take a long time should be avoided
+
+	check cd $taskdir/run.$runid
+	checkoutput
+	check cd ..
+
+	check mv run.$runid Output
+	# rm -rf run.*			# XXX remove other task instance directories: save disk space
+	check cd ..
+	check mv prep$taskid task$taskid
+	conaddr=`{cat conaddr}
+	check cd task$taskid
+	tpath=`{cat taskfiles/path}
+
+	(tray well image)=${split '/' $tpath}
+
+	check mount -Ac $conaddr /n/local
+	if {! ftest -d /n/local/$tray/$well} {check mkdir /n/local/$tray/$well}
+	check cat Output/image > /n/local/$tray/$well/$image
+#	check echo >> $outputpath/$tray
+#	echo -n $well: $image^': ' >> $outputpath/$tray
+#	cat Output/image >> $outputpath/$tray
+	check cd ..
+	check unmount /n/local
+#	rm -r task$taskid/*
+}
+
+fn failedtask {
+	stage := failedtask
+	or{~ $#* 1} {error 'usage: failedtask taskid'}
+	taskid:=$1
+	check mv prep$taskid failed$taskid
+}
+	
+fn check{
+	or {$*} {
+		error error ${quote $status} in $stage executing ${quote $*} '(in cwd '^`{pwd}^')'
+	}
+	status=''
+}
+
+fn error {
+	echo image.job: $* >[1=2]
+	raise $"*
+}
+
+fn checkoutput {
+	if{ftest -f error}{
+		raise 'client detected failure: '^"{cat error}
+	}
+	if{! ftest -f image} {
+		raise 'image result not found'
+	}
+	if{! ftest -s image} {
+		raise 'image result empty'
+	}
+	status = ''
+}

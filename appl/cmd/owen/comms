@@ -1,0 +1,36 @@
+
+farm:fd2tasks		readpacket
+farm:fd2tasks		send on taskc
+farm:tasks2sched	receive packet
+farm:tasks2sched	write to data
+sched:styxservers	read from styx connection
+sched:styxservers	send to scheduler
+sched:scheduler 	send to requestproc
+sched:scheduler		send to datawriteproc
+sched:tgsimple		send to tasksproc
+sched:splitgen		send to newtask
+
+slave:runtask		open task
+sched:styxserver	read from styx connection
+sched:styxservers	send to schedule
+sched:scheduler	send to requestproc
+sched:scheduler	send to taskmonproc
+sched:scheduler	add to waiting list
+sched:scheduler	send Start to taskgenproc
+sched:tgsimple		check spec
+sched:tgsimple		open param, result
+sched:tgsimple		spawn taskproc
+sched:tkself		send Ok to taskgenproc
+sched:scheduler	remove from waiting list
+sched:scheduler	send reply to resquestproc
+sched:scheduler	send reply down styx connection
+slave:runtask		read from task
+sched:styxserver	read from styx connection
+sched:styxservers	send to schedule
+sched:scheduler	send to requestproc
+sched:scheduler	send to taskproc
+sched:scheduler
+slave:runtask
+	-> sched:walk, open
+
+slave:runtask		read

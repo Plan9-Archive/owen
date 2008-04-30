@@ -1,0 +1,36 @@
+load std expr
+
+fn runtask {
+	# get files
+	check gettar -v >[1=2]
+
+	# run
+	name=`{cat /grid/slave/nodename}
+	debug
+	debug $name
+	debug Starting task...
+	cd /grid/slave/work
+	./count.dis `{cat /grid/slave/work/total}
+	debug Done
+}
+
+fn submit {
+	debug Submit
+	check cd Output
+	check puttar .
+	debug submit done
+}
+
+fn killtask {
+}
+
+fn debug {
+	echo $* >[1=2]
+}
+fn check {
+	or {$*} {
+		s := $status
+		echo error executing ${quote $*}^: $s >[1=2]
+		raise $s
+	}
+}

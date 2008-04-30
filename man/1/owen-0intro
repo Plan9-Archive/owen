@@ -1,0 +1,169 @@
+.TH OWEN-INTRO 1
+.SH NAME
+owen-intro \- overview of the scheduler structure and configuration
+.SH DESCRIPTION
+The scheduler software is split into three different parts:
+.TP 8
+.B scheduler
+runs on a single machine
+for a given computational grid, and splits up jobs and hands them
+out to clients as well as managing recovery from failure
+.TP
+.B client
+runs on every client that will be a
+.IR worker ,
+and communicates with the scheduler to
+receive tasks to process and return the results
+.TP
+.B monitors
+allow users to
+control and monitor the state of the scheduler and clients through
+several graphical interfaces, currently one to create and monitor jobs,
+and another to monitor and manage the worker nodes
+.PD
+.PP
+There are also various job specific files which include the interfaces
+to the scheduler, monitor and client, and also any data and/or
+executables required by clients in order to process a task.
+.SS Location
+The scheduler software is found in a number of directories below the Inferno root:
+.TP 8
+.B /appl/cmd/scheduler
+The source code for the scheduler, client and monitor
+.TP
+.B /dis/scheduler
+The executables
+.TP
+.B /grid
+All grid-related data and scripts, in separate subdirectories for each component.
+.TP
+.B /grid/master
+The scheduler data, this includes temporary storage for running jobs,
+some startup/configuration files and any server side job specific
+scripts and data.
+.TP
+.B /grid/slave
+The client data, this includes temporary storage for processing tasks
+jobs, some startup/configuration files and any job specific client
+side scripts.
+.TP
+.B /grid/scripts
+This holds a directory for each host platform containing scripts
+to start various parts of the system running.
+.SS "Setup"
+Before running the scheduler, monitor or client you must make sure that the files
+.B /grid/master/config
+and
+.B /grid/slave/config
+contain the correct address for the scheduler.
+The address appears as the value of the attributes
+.CW schedaddr
+and
+.CW schedfsaddr .
+It is written in the form:
+.IP
+.BI tcp! "machine" ! "port"
+.PP
+where
+.I machine
+is the address (domain name or IP address) of the machine runnning the
+scheduler and
+.I port
+is the port on which it listens. This can be done by editing the file using
+.IR acme (1),
+.BR wm/edit ,
+or just using the
+.B echo
+command:
+.IP
+.B echo '(schedaddr "tcp!scheduler!6666")' > /grid/master/config
+.B echo '(schedfsaddr "tcp!scheduler!1234")' >>/grid/master/config
+.SS "Starting the scheduler"
+Run the
+.B /grid/master/startsched
+script.
+.PP
+Alternatively, use the following commands:
+.IP
+.B styxlisten -Ah
+.I scheduleraddress
+.B scheduler/scheduler 
+.IR args " ..."
+.PP
+where
+.I args
+are arguments supplied to the
+.IR owen-scheduler (1),
+and
+.I scheduleraddress
+is the address of the scheduler, as discussed above.
+.SS Starting the monitor
+Run the script
+.B /grid/scripts/Inferno/jobmonitor
+or use the following command:
+.IP
+.BI "scheduler/jobmonitor [" " args... " "]" " scheduleraddress"
+.PP
+where
+.I args
+are arguments supplied to the monitor as specified in
+.IR owen-jobmonitor (1)
+and
+.I scheduleraddress
+is the address of the scheduler.
+.PP
+Starting the node monitor
+.IR owen-nodemonitor (1)
+is similar, using
+.B /grid/scripts/Inferno/nodemonitor
+and
+.BR scheduler/nodemonitor .
+.SS Starting the client
+To run the worker software
+from within a normal instance of Inferno that is already running, run the
+.B /grid/scripts/Inferno/worker
+script or use the following commands:
+.IP
+.EX
+ndb/cs
+.br
+.fi
+scheduler/worker -Av
+.I scheduleraddress
+.EE
+.PD
+.PP
+where
+.I scheduleraddress
+is the address of the scheduler.
+.SS "Running the Client as a service under Windows 2000/XP"
+.IP 1. 4n
+From within Windows (not Inferno), run
+.B /grid/scripts/Nt/install_service.bat
+.IP 2.
+Bring up the Services window
+.BR (Control Panel->Administrative Tools->Services) .
+.IP 3.
+Select the
+.B InfernoGridSlave
+service and start it.
+.PP
+The client will subsequently start automatically after a reboot, unless that default is changed in the service manager.
+.SS "Running the Client as a service under Windows NT4"
+.IP 1. 4n
+From within Windows (not Inferno), run
+.B /grid/scripts/Nt/install_service_nt4.bat
+.IP 2.
+Bring up the Services window
+.B (Control Panel->Services)
+.IP 3.
+Select the
+.B InfernoGridSlave
+service and start it.
+.PP
+The client will subsequently start automatically after a reboot, unless that default is changed in the service manager.
+.SS SEE ALSO
+.IR owen-scheduler (1),
+.IR owen-monitor (1),
+.IR styxlisten (1),
+.IR owen-scheduler (4)

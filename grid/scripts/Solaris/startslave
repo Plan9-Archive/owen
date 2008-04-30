@@ -1,0 +1,29 @@
+#!/bin/sh
+
+usage(){
+	echo 'usage: startslave [-r infernoroot] [configfile]' >&2
+	exit 1
+}
+
+root=/grid/inferno
+case $1 in
+-r)	case $2 in
+	"")	usage;;
+	*)	root="$2";;
+	esac
+	shift 2 ;;
+esac
+
+BIN=$root/Solaris/sparc/bin
+PATH=$BIN:$PATH export PATH
+
+while :
+do
+	if test -x $BIN/newemu
+	then
+		mv $BIN/newemu $BIN/emu || exit 1
+	fi
+	emu -r$root /dis/sh.dis -c \
+		'ndb/cs; /grid/scripts/Inferno/worker $*' "$@"
+ 	sleep 5		# if we're given an invalid emu, don't spin horribly.
+done

@@ -1,0 +1,102 @@
+.TH SH-OWEN 1
+.SH NAME
+owen: ctl, fmtcat, job, mountsched, readconfig, start \- interact with grid scheduler
+.SH SYNOPSIS
+.B run /lib/sh/owen
+
+.BI ctl " id request arg ..."
+.br
+.BI fmtcat " fmt file"
+.br
+.BI ${job " jobtype arg ... " }
+.br
+.BI job " jobtype arg ..."
+.br
+.B mountsched
+.br
+.BI "readconfig {" cmd }
+.br
+.BI start " jobtype arg ..."
+.SH DESCRIPTION
+.B Owen
+is a library for
+.IR sh (1)
+that provides a few shell functions to interact with the grid scheduler,
+.IR owen-scheduler (1),
+allowing jobs to be started and controlled.
+.I Mountsched
+must be used before any of the job control functions.
+.TP 10
+.BI ctl " id req arg ..."
+.B Ctl
+issues a control
+.I request
+(with the given arguments) to the job with the given
+.IR id .
+.TP
+.BI fmtcat " fmt file"
+Extracts data from
+.I file
+according to the
+.I fmt
+(see
+.IR format (2)).
+.TP
+.BI ${job " jobtype arg ..." }
+Allocates a new job to run the given
+.I jobtype
+with the given arguments,
+and returns the job's unique ID as its result.
+.TP
+.BI job " jobtype arg ..."
+Allocates a new job to run the given
+.I jobtype
+with the given arguments, and prints the job's unique ID on standard output.
+.TP
+.BI mountsched
+Mounts the
+.IR owen-scheduler (4)
+name space at
+.B /n/remote
+(sic), using the configuration file in
+.B $configfile
+(default:
+.BR /grid/slave/config )
+to find the scheduler's network address and its attributes:
+.B auth
+(whether to use authentication); and
+.B keyfile
+(if authenticating, which key file to use).
+If the configuration file defines
+.BR schedfsaddr ,
+that file service is mounted at
+.BR /n/gridfs .
+.TP
+.BI "readconfig {" cmd "}"
+Reads the configuration file named by
+.B $configfile
+(default:
+.BR $root/config ).
+It runs
+.I cmd
+for each configuration entry, setting shell variables
+.B $attr
+and
+.B $val
+to the attribute and value of the entry.
+Typically
+.I cmd
+is an
+.B if
+command that executes different subcommands
+depending on the value of
+.BR $attr .
+.TP
+.BI start " jobtype arg ..."
+Start a new job with the given job type and arguments;
+print its ID.
+.SH SOURCE
+.B /lib/sh/owen
+.SH SEE ALSO
+.IR sh (1),
+.IR sh-std (1)

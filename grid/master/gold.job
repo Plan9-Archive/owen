@@ -1,0 +1,145 @@
+#!/dis/sh.dis
+load string std expr
+
+fn mkjob {
+	stage := mkjob
+	# usage: mkjob ligands_per_task ligand_file conf_file protein_file otherfiles...
+	echo ${quote $*} > args
+
+	if{~ $#* 0 1 2 3} {
+		error 'usage: mkjob ligands_per_task ligand_file conf_file protein_file otherfiles...'
+	}
+	(nligs ligfile conffile proteinfile others) := $*
+	for(i in $conffile $ligfile $proteinfile){
+		or {ftest -f $i} {
+			error $i does not exist
+		}
+	}
+
+	# save ligfile and nligs for mktask to pick up
+	echo $ligfile > ligfile
+	echo $nligs > nligs
+
+	# copy our job specific files into a known location
+	check mkdir jobfiles
+	if {! no $others} {check cp $others jobfiles}
+	check sed (
+		-e '/^ *ligand_data_file/s/ ([^ ]+) ([0-9]+)$/ ligands.sdf \2/'
+		-e '/^ *protein_datafile/s/ ([^ ]+)$/ dock.pdb/'
+		-e '/^ *directory/s: *=.*: = ./Output:'
+	) < $conffile > jobfiles/gold.conf
+	cp $proteinfile jobfiles/dock.pdb
+
+	# determine the number of tasks
+	tot := `{check {/grid/master/gold/sdfcount -ci sdfindex $ligfile}}
+	echo ${expr $tot $nligs 1 - + $nligs /} > ntasks
+}
+
+fn mktask {
+	stage := mktask
+	or{~ $#* 1} {
+		error 'usage: mktask taskid'
+	}
+	taskid := $1
+	taskdir := prep$taskid
+
+	# get the name of the ligands file (cached by mkjob)
+	ligfile:=`{read <ligfile}
+	if {no $ligfile} {error 'mktask: nothing found in ligfile'}
+
+	# get the number of ligands per task (cached by mkjob)
+	nligs:=`{read <nligs}
+	if {no $nligs} {error 'mktask: nothing found in nligs'}
+
+	# create the task workspace
+	check mkdir $taskdir
+	check mkdir $taskdir/taskfiles
+
+	# prepare the ligands for this task
+	recno := ${expr $taskid $nligs x}
+	check {
+		/grid/master/gold/sdfget -i sdfindex -n $nligs $ligfile $recno > $taskdir/taskfiles/ligands.sdf
+	}
+}
+
+fn runtask {
+	stage := runtask
+	and{~ $#* 0 1} {error 'usage: runtask taskid runid attrs nodeattrs'}
+	(taskid runid attrs nodeattrs) := $*
+	taskdir := prep$taskid
+	rundir := $taskdir/run.$runid
+
+	check mkdir $rundir
+
+	# send files
+	check bind -b jobfiles $rundir
+	check bind -b /grid/master/gold/auxfiles $rundir
+	check bind -b $taskdir/taskfiles $rundir
+	check cd $rundir
+	check puttar .
+}
+
+fn submit {
+	stage := submit
+	or{~ $#* 2} {error 'usage: submit taskid runid'}
+	(taskid runid) := $*
+	rundir := prep$taskid/run.$runid
+	or {ftest -d $rundir} {mkdir $rundir}
+	check cd $rundir
+	check gettar >[1=2]
+	status=''
+}
+
+fn endtask {
+	stage := endtask
+	or{~ $#* 2} {error 'usage: endtask taskid runid'}
+	(taskid runid) := $*
+	taskdir := prep$taskid
+
+	# NOTE: the scheduler is locked during execution of this script
+	# so tasks that take a long time should be avoided
+
+	check cd $taskdir/run.$runid
+	checkgold
+	check cd ..
+
+	check mv run.$runid Output
+	# rm -rf run.*			# XXX remove other task instance directories: save disk space
+	check cd ..
+	check mv prep$taskid task$taskid
+}
+
+fn failedtask {
+	stage := failedtask
+	or{~ $#* 1} {error 'usage: failedtask taskid'}
+	taskid:=$1
+	check mv prep$taskid failed$taskid
+}
+
+fn check{
+	or {$*} {
+		error error ${quote $status} in $stage executing ${quote $*} '(in cwd '^`{pwd}^')'
+	}
+	status=''
+}
+
+fn error {
+	echo gold.job: $* >[1=2]
+	raise $"*
+}
+
+fn checkgold {
+	if{ftest -f error}{
+		raise 'client detected failure: '^"{cat error}
+	}
+	line := `{grep '^Total run time' gold.log}
+	if{! ~ $#line 10}{
+		echo no run time, files: * >[1=2]
+		raise 'log file does not contain run time'
+	}
+	time := ${index 6 $line}
+	if{ntest ${expr $time 10 lt}}{
+		raise 'task terminated too quickly'
+	}
+	status = ''
+}

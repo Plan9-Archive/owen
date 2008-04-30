@@ -1,0 +1,7 @@
+(auth "1")
+(keyfile "/usr/forsyth/keyring/rsacert")
+(workerkeyfile "/usr/forsyth/keyring/rsacert")
+(schedaddr "tcp!doppio!infsched")
+(packages (inferno sched))
+(schedfsaddr "tcp!doppio!1234")
+(fsauth "0")

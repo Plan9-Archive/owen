@@ -1,0 +1,8 @@
+load std
+fn runtask {
+	$* > result
+}
+
+fn submit {
+	cat result
+}

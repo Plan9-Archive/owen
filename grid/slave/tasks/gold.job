@@ -1,0 +1,49 @@
+load std expr
+
+fn runtask {
+	# get files
+	check gettar -v >[1=2]
+
+	# run gold
+	check bind -a '#C' /
+	debug About to run gold
+	work := $emuroot^$root^/work	# XXX relying on root starting with / here; could just use `{pwd}
+	# don't check gold status 'cos we want to see its output error file even if it fails
+	os -n -d $work $work/gold_win32.exe < /dev/null >[1=2]
+	debug Done gold
+}
+
+fn submit {
+	debug Submit
+	check cd Output
+	error := ok
+	# XXX could save server time here by calling checkgold
+	check puttar .
+	debug submit done
+}
+
+fn killtask {
+}
+
+fn check {
+	or {$*} {
+		s := $status
+		echo error executing ${quote $*}^: $s >[1=2]
+		raise $s
+	}
+}
+
+fn debug {
+	echo $* >[1=2]
+}
+
+fn checkgold {
+	line := `{grep '^Total run time' gold.log}
+	if{! ~ $#line 10}{
+		raise 'log file does not contain run time'
+	}
+	time := ${index 6 $line}
+	if{ntest ${expr $time 10 lt}}{
+		raise 'task terminated too quickly ('^$time^'s)'
+	}
+}

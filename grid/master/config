@@ -1,0 +1,3 @@
+(schedaddr "tcp!pranzo!6678")
+(schedfsaddr "tcp!pranzo!1234")
+(auth "0")

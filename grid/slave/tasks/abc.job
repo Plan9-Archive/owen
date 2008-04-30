@@ -1,0 +1,22 @@
+load std alphabet
+
+fn runtask {
+	# declare all the primitives we want the scheduler to be able to invoke.
+	declares { |
+		autodeclare 1 |
+		define writeresult "{ |
+			/create result
+		} |
+		define stdin "{
+			/fd 0 | /w2fd
+		}
+	}
+	expr = '{stdin | '^$1^'| writeresult}'
+	(sig expr) := ${rewrite ${parse $expr} /status}
+	- $expr > result
+	clear
+}
+
+fn submit {
+	cat result
+}

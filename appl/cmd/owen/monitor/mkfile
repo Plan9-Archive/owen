@@ -1,0 +1,30 @@
+<../../../../mkconfig
+
+TARG=\
+	browser.dis\
+	common.dis\
+	jobmonitor.dis\
+	nodemonitor.dis\
+	schedcopy.dis\
+
+SYSMODULES=\
+	arg.m\
+	bufio.m\
+	draw.m\
+	rand.m\
+	readdir.m\
+	sets.m\
+	sexprs.m\
+	sh.m\
+	string.m\
+	styx.m\
+	sys.m\
+
+MODULES=\
+	browser.m\
+	common.m\
+	pathreader.m\
+
+DISBIN=$ROOT/dis/owen
+
+<$ROOT/mkfiles/mkdis

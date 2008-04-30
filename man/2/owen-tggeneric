@@ -1,0 +1,356 @@
+.TH OWEN-TGGENERIC 2
+.SH NAME
+TGgeneric \- support for data-centric task generators
+.SH SYNOPSIS
+.EX
+implement Simplegen, Taskgenerator;
+include "taskgenerator.m";
+include "tggeneric.m";
+tggeneric := load TGgeneric TGgeneric->PATH;
+Task, Param: import TGgeneric;
+Clientspec: import Taskgenerator;
+Started, Error, Nomore: import Taskgenerator;
+
+init: fn(): string;
+start: fn(gen: Simplegen): chan of ref Taskgenerator->Taskgenreq;
+checkspec: fn(spec: ref Clientspec, tasktype: string, space: big): string;
+hash: fn(fd: ref Sys->FD, soff, eoff: big): array of byte;
+
+Simplegen: module {
+	taskcount: fn(): int;
+	state: fn(): string;
+	start: fn(id: string, tries: int, spec: ref Clientspec): (int, ref Task, string);
+	reconnect: fn(id: string): (ref Task, string);
+	verify: fn(t: ref Task, duration: big): string;
+	finalise: fn(t: ref Task, ok: int);
+	complete: fn();
+	quit: fn();
+	opendata: fn(
+		user: string,
+		mode: int,
+		read:		chan of Taskgenerator->Readreq,
+		write:	chan of Taskgenerator->Writereq,
+		clunk:	chan of int): string;
+};
+
+Param: adt {
+	name: string;
+	pick{
+	File =>
+		hash: array of byte;
+		size: big;
+		kind: string;
+		fd: ref Sys->FD;
+		soff, eoff: big;
+	Value =>
+		v: list of string;
+	}
+};
+
+Task: adt {
+	id: string;
+	instid: string;
+	taskargs: list of string;
+	params: list of ref Param;
+	out: ref Sys->FD;
+	outkind: string;
+};
+.EE
+.SH DESCRIPTION
+.I TGgeneric
+provides support for writing
+.IR owen-scheduler (1)
+task generators that conform to a frequently found pattern: each
+task pulls in some input data and writes some output data.
+It implements interaction permitting clients to pull in
+data on an as-needed basis, removing the need to transfer
+large static files for every task in a job.
+.PP
+To use
+.IR TGgeneric ,
+you must implement a module
+compatible with the
+.B Simplegen
+module interface. It is conventional that this module also
+implements the
+.B Taskgenerator
+interface, and can thus be loaded by the scheduler as a task
+generator module.
+.PP
+Once the
+.I TGgeneric
+module has been loaded, its
+.B init
+function should be called first.
+Then an instance of a
+.B Simplegen
+module (usually the result of \f5load Simplegen "$self"\fP)
+should be given to
+.BR start ,
+which starts a task generator process and yields a channel suitable
+for returning from
+.BR Taskgenerator->init .
+These functions in the
+.B Simplegen
+module will be called in response to messages sent
+by the scheduler on this channel:
+.TP 10
+.B taskcount()
+.B Taskcount
+should return the total number of tasks in the job.
+This number is used for informational purposes only,
+and may or may not reflect the actual number of tasks for the job.
+If the number of tasks is not known,
+.B taskcount
+may return -1.
+.TP
+.B state()
+.B State
+should return a string representing any runtime state
+that the task generator would need to reconstruct its current
+state.
+.TP
+.B start(\fIid\fP,\ \fItries\fP,\ \fIspec\fP,\ \fIkick\fP)
+.B Start
+is called to prospectively start a task running on the
+client described in
+.IR spec (see
+.IR owen-taskgenerator (2)).
+If
+.I id
+is
+.BR nil ,
+a new task is requested, otherwise it gives the identity
+of an old task to be restarted.
+When restarting,
+.I tries
+gives the number of previous attempts.
+For convenience,
+.I TGgeneric
+provides the
+function
+.BR checkspec ,
+which checks that the client represented by
+.I spec
+is capable of executing the task
+.IR tasktype ,
+and has enough available
+.I space
+for its input file parameters.
+.B Start
+returns a tuple, say (\fIstatus\fP, \fItask\fP, \fIerr\fP).
+If the task has started successfully,
+.I status
+should be
+.BR Started ,
+and
+.I task
+should give details of the task (see below).
+If the task cannot be started,
+.I err
+should give a reason for the failure,
+and
+.I task
+should be
+.BR nil .
+If the failure is permanent,
+.I status
+should be
+.BR Nomore ;
+otherwise
+.I status
+should be
+.BR Error .
+.TP
+.B reconnect(\fIid\fP)
+.B Reconnect
+is similar to
+.BR start ,
+except that it is called when a previously disconnected
+client has reconnected and wishes to submit
+the results of its computation.
+It returns a tuple, say (\fItask\fP, \fIerr\fP),
+where
+.I task
+gives details of the task if the reconnect
+is successful, otherwise it should be
+.B nil
+and
+.I err
+should describe the error.
+The client is already assumed to have
+previously obtained the task parameters, so
+.IB task .taskargs
+and
+.IB task .params
+are ignored, and may be
+.BR nil .
+.TP
+.B verify(\fItask\fP,\ \fIduration\fP)
+.B Verify
+is invoked when a task has completed to verify
+that a client has produced acceptable results.
+.I Task
+gives the details of the task.
+If
+.B verify
+returns
+.BR nil ,
+the task is deemed to be successfully completed,
+otherwise it should return an error message describing
+the reason for the failure.
+.I Duration
+gives the length of time for which the task
+has been active, in milliseconds.
+.TP
+.B finalise(\fItask\fP,\ \fIok\fP)
+.B Finalise
+is called to allow the task generator to clean up
+any auxiliary data of files relating to the task.
+If
+.I ok
+is non-zero, this was the first instance
+to succeed, otherwise the task has either failed
+or was completed redundantly.
+.TP
+.B opendata(\fIuser\fP,\ \fImode\fP,\ \fIread\fP,\ \fIwrite\fP,\ \fIclunk\fP)
+.B Opendata
+is called when a client opens the
+.B data
+file in the job directory. The semantics are described
+in
+.IR owen-taskgenerator (2).
+.TP
+.B complete()
+.B Complete
+is called when all the tasks for a job have been
+completed or drawn permanent errors.
+It will be the last function called before
+.BR quit .
+.TP
+.B quit()
+.B Quit
+is called when the task generator is shut down.
+It is always the last function called.
+.PP
+.SS Task Description
+A task is described with a
+.B Task
+adt, say
+.IR t ,
+holding details of the task's parameters and what to be
+done with its output data.
+Its fields are as follows
+.TP 10
+.IB t .id
+.IB T .id
+gives the
+.I identity
+of the task. This is an arbitrary string that the
+task generator can use to identify a particular task in
+the job. It is not necessarily unique over all the
+tasks in the job.
+.TP
+.IB t .instid
+It is possible that several instances of the same task
+are started simultaneously;
+.IB t .instid
+provides a way for a task generator to tag a particular instance of
+a task (for instance to keep track of temporary
+files created for the task). It is not used by the
+.B TGgeneric
+module.
+.TP
+.IB t .taskargs
+.IB T .taskargs
+should hold a list giving the name of the task to be started on
+the client (its
+.IR tasktype ,
+the first element of the list) and its arguments (subsequent elements).
+.TP
+.IB t .params
+.IB T .params
+holds a list of the task's
+.IR parameters ,
+each of which is either a
+.I file
+or a
+.IR value .
+See below for their definition.
+.TP
+.IB t .out
+.IB T .out
+gives a file descriptor to which task output will
+be written.
+.TP
+.IB t .outkind
+gives the type of the output data required of the client.
+Currently there are only two types supported,
+.B data
+(the standard output of the task), and
+.B bundle
+(an archive of the working directory of the task).
+.PP
+A file parameter is represented by a
+.BR "ref Param.File" ,
+say
+.IR f .
+Its members are as follows:
+.TP 10
+.IB F .name
+gives a symbolic name for the file.
+.TP
+.IB f .fd
+gives a file descriptor from which file data will be read.
+TP
+.IB f .soff
+gives the start offset of the data in the file.
+.TP
+.IB f .eoff
+gives the end offset of the data in the file. This may
+be greater than the actual size of the file, in which case
+the actual file size is used.
+.TP
+.IB f .size
+gives the space that will be taken up by the file on the client
+(this might be different from the current size if the
+file is compressed, for example).
+.TP
+.IB f .hash
+gives the MD5 secure hash of the contents of the file.
+For convenience,
+.I TGgeneric provides the
+.B hash
+function, which will calculate the appropriate hash of a portion of
+a file, given its file descriptor and starting and ending offset.
+.TP
+.IB F .kind
+describes the type of the file data. This affects how the client will treat the
+file once it has downloaded it. Currently the only kinds recognised are
+.B data
+(the unadorned bytes),
+.B stdin
+(same as
+.B data
+except that the file will be given as standard input to
+the running task)
+and
+.B bundle
+(the file holds a bundle of files as archived by
+.IR bundle (2)).
+.PP
+A value parameter is represented by a
+.BR "Param.Value" ,
+say
+.IR v .
+.IB V .name
+gives a symbolic name for the value,
+and
+.IB v .v
+gives its value.
+.SH SOURCE
+.B /appl/cmd/scheduler/tggeneric.b
+.SH SEE ALSO
+.IR owen-scheduler (1),
+.IR owen-scheduler (4),
+.IR owen-taskgenerator (2)

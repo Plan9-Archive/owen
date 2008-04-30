@@ -1,0 +1,52 @@
+load std expr
+
+fn runtask {
+	# get files
+	check gettar -v >[1=2]
+
+	# run rabies
+	check bind -a '#C' /
+	debug About to run rabies
+
+	# don't check rabies status 'cos we want to see its output error file even if it fails
+	cityname = `{cat cityname}
+	taskid = `{cat taskid}
+	# debug os -n -d $work $work/rabies.exe $work $taskid $cityname rabies
+	# check os -n -d $work $work/rabies.exe $work $taskid $cityname rabies < /dev/null >[1=2]
+	debug $work/rabies.dis -t $taskid $work/$cityname
+	# Don't do check cos we want it to send back any error output
+	$work/rabies.dis -t $taskid $work/$cityname
+
+	debug Done rabies
+}
+
+fn submit {
+	# should be in work directory at this point
+	check mkdir Output
+	# check cp info Output - this file is not created any more
+	cityname = `{cat cityname}
+	for (i in $cityname/err.txt $cityname/rab_summ_batch.txt $cityname/rab_grph_batch.txt $cityname/rab_tots_batch.txt) {
+		if {ftest -f $i} {check cp $i Output}
+	}
+	check cd Output
+	debug Submit
+	error := ok
+	# XXX could save server time here by calling checkrabies
+	check puttar .
+	debug submit done
+}
+
+fn killtask {
+}
+
+fn check {
+	or {$*} {
+		s := $status
+		echo error executing ${quote $*}^: $s >[1=2]
+		raise $s
+	}
+}
+
+fn debug {
+	echo $* >[1=2]
+}

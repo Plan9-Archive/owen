@@ -1,0 +1,50 @@
+load std expr
+memfs /tmp
+cp /grid/slave/image.job /tmp
+memfs /grid/slave
+cp /tmp/* /grid/slave
+unmount /tmp
+mkdir /grid/slave/work
+
+fn runtask {
+	# get files
+	check gettar -v >[1=2]
+
+	# run
+	l=`{ls /grid/slave/work/*}
+	debug Dirlist:
+	debug $l
+	wait=`{cat /grid/slave/work/wait}
+	cd /grid/slave/work
+	check bind -a '#C' /
+	debug
+	debug $name
+	debug Starting Processing...
+	check mkdir Output
+	check {
+		cat image | os -n $emuroot^/grid/slave/image/process.exe $wait | cat > Output/image >[2]Output/error
+	}
+	debug Done
+}
+
+fn submit {
+	debug Submit
+	check cd Output
+	check puttar .
+	debug submit done
+	unmount /grid/slave
+}
+
+fn killtask {
+}
+
+fn debug {
+	echo $* >[1=2]
+}
+fn check {
+	or {$*} {
+		s := $status
+		echo error executing ${quote $*}^: $s >[1=2]
+		raise $s
+	}
+}

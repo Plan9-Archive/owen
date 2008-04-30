@@ -1,0 +1,6 @@
+jobconfig: Count
+preopt:
+string	'Prerequisite'	0 ''
+cmd: script count
+int 		'N Tasks' 	0 ''	1	1000
+string 	'Count to' 	0 ''

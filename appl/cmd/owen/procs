@@ -1,0 +1,89 @@
+scheduler:
+
+	logfileproc
+
+	dumpproc
+
+	unblacklistproc
+
+	taskmonproc
+
+	bufferproc
+
+	requestproc
+
+	(job complete)
+
+	statsproc
+
+	taskgenproc
+		
+
+	tasklogproc
+
+	logproc
+
+simplegen
+
+	taskproc
+		read request ->
+			read data from param file
+		write request =>
+			write data to results file
+		finish request =>
+			verify results file
+			send task to putproc
+			get reply from putproc
+
+	(putoldtasks)
+
+	putproc
+		get task
+		send (task, gotc) to resultsproc
+		send reply to taskproc
+		receive (gotc) from tasksproc
+
+	prepare
+		call mod->get
+
+	mkuniq
+
+	datareadproc
+
+	datawriteproc
+
+splitgen
+
+	tasksproc
+		get request from datawriteproc
+		if data is a task
+			send to prepare
+		else (it's an ack)
+			unblock gotc
+
+	resultsproc
+		get (result, gotc)
+		send to datareadproc
+		register gotc
+
+	(stopresults)
+
+farm
+
+	fd2tasks
+		repeat
+			read task from stdin
+			send to tasks2sched
+
+	tasks2sched
+		repeat alt{
+		receive task from fd2task =>
+			write() to writetaskproc
+		received ackresult from sched2fd
+			write() to writetaskproc
+
+	sched2fd
+		read() from readtaskproc
+		send ackresult to tasks2sched
+		write result to stdout
+

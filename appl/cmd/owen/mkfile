@@ -1,0 +1,63 @@
+<../../../mkconfig
+DIRS=\
+	monitor\
+
+TARG=\
+	archives.dis\
+	attributes.dis\
+	bundle.dis\
+	farm.dis\
+	file2rec.dis\
+	goldgen.dis\
+	hostattrs.dis\
+	indexes.dis\
+	match.dis\
+	mount.dis\
+	nstyxservers.dis\
+	rec2file.dis\
+	scheduler.dis\
+	tggeneric.dis\
+	tgself.dis\
+	tgsimple.dis\
+	timetable.dis\
+	testclient.dis\
+	filesplitgen.dis\
+	jobgen.dis\
+	scriptgen.dis\
+#	testgen.dis\
+	updategen.dis\
+	worker.dis\
+	workflowgen.dis\
+
+SYSMODULES=\
+	arg.m\
+	bufio.m\
+	draw.m\
+	rand.m\
+	readdir.m\
+	sets.m\
+	sexprs.m\
+	sh.m\
+	string.m\
+	styx.m\
+	sys.m\
+
+MODULES=\
+	archives.m\
+	attributes.m\
+	indexes.m\
+	nstyxservers.m\
+	tgsimple.m\
+	tggeneric.m\
+	tgself.m\
+	taskgenerator.m\
+	timetable.m\
+
+DISBIN=$ROOT/dis/owen
+
+<$ROOT/mkfiles/mkdis
+<$ROOT/mkfiles/mksubdirs
+
+scheduler.dis archives.dis: archives.m
+scheduler.dis testgen.dis scriptgen.dis updategen.dis: taskgenerator.m
+scheduler.dis: nstyxservers.m

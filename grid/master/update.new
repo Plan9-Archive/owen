@@ -1,0 +1,7 @@
+jobconfig: Update
+preopt: match
+string	'Match 1'	0 ''
+string	'Match 2'	0 ''
+cmd: update
+string	'Action'	1 '-a'
+path		'Base File'	0 ''	/grid/master bun.gz

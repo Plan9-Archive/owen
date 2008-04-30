@@ -1,0 +1,9 @@
+	load std
+	fn runtask {
+		cat > result
+		sleep $1
+	}
+
+	fn submit {
+		cat result
+	}

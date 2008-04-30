@@ -1,0 +1,3 @@
+- we're still populating this project
+- our grid terminology changed from "slave" to "worker" but this is not yet always reflected in the code or tree
+- the software was designed and implemented by Roger, Chris and Danny; and then periodically reimplemented by Roger

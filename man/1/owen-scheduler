@@ -1,0 +1,416 @@
+.TH OWEN-SCHEDULER 1
+.SH NAME
+scheduler \- distribute work to multiple clients
+.SH SYNOPSIS
+.B styxlisten -h
+.I addr
+.B scheduler/scheduler
+[
+.B -n
+] [
+.I configfile
+]
+.SH DESCRIPTION
+.I Scheduler
+oversees the queuing of jobs, the splitting
+of those jobs into subtasks, and the distribution of those
+tasks amongst multiple clients.
+Used as described in the synopsis above,
+.I styxlisten
+announces itself on network address
+.I addr
+and serves a namespace to any client that connects.
+See
+.IR owen-scheduler (4)
+for a description of the namespace interface presented.
+Options include:
+.TP 10
+.B -n
+Do not try to restore from previously archived state.
+.PP
+.I Scheduler
+reads parameters from
+.I configfile
+.BR "" ( /grid/master/config
+by default) which holds a set of attribute-value pairs
+in S-expression format
+(see the description of the
+`advanced form' in
+.IR sexprs (6)).
+Each attribute-value pair is represented as a two-element
+S-expression list: the first element gives the name of the attribute,
+and the second its value.
+Attributes understood by
+.I scheduler
+include:
+.TP
+.B root
+.B Root
+specifies the
+.IR owen-scheduler 's
+working directory, the directory where log files, archived
+state, and job results data is stored. The default is
+.BR /grid/master .
+.TP
+.B log
+.B Log
+specifies the name of a file or directory to which
+the scheduler will write informational log messages.
+If this does not begin with
+.B /
+or
+.B ./
+the name is interpreted relative to the value of the
+.BR root
+attribute.
+The default is
+.BR log .
+Messages will only be written if the file or directory
+already exists, and is writable. If it is a file, then events will be appended
+to it; if a directory, events will be logged to files within that directory
+named
+.BI log. time
+where
+.I time
+is the time (in seconds since the epoch) that the log file was created.
+See below for the format of the log file.
+.TP
+.B loginterval
+When the
+.B log
+attribute refers to a directory, the
+.I scheduler
+will periodically ``roll over'' to a new log file,
+in order to avoid huge files building up.
+This option sets the interval of this period.
+The value of the
+.B loginterval
+attribute
+should be a decimal iinteger, optionally followed by letters giving the time
+units (default seconds). Possible units are
+.B ms
+(milliseconds),
+.B s
+(seconds),
+.B m
+(minutes),
+.B h
+(hours)
+and
+.B d
+(days).
+The default is 1 week.
+.TP
+.B dumpinterval
+.I Scheduler
+periodically dumps its working state so that if crashed or shut down
+it can carry on from the most recent dump.
+This attribute sets the interval between dumps, in the same units as
+for the
+.B loginterval
+attribute. The default is 10 seconds.
+.TP
+.B unblacklistinterval
+If a node fails too many tasks in a row, it will be blacklisted.
+Every so often,
+.I scheduler
+speculatively unblacklists such nodes. The value
+of the
+.B unblacklistinterval
+attribute gives the minimum time between such events,
+in the same units as for the
+.B loginterval attribute.
+The default is 10 minutes.
+.TP
+.B taskgenpath
+Job types are implemented by dynamically loaded modules external
+to the scheduler.
+.I Taskgenpath
+gives the directory where it will look for these modules.
+The default is
+.BR /dis/scheduler .
+.TP
+.B adminid
+When running an authenticated system, the value of this attribute
+gives the name of a user that will be granted adminstration-level
+access to the scheduler.
+.TP
+.B workerid
+When running an authenticated system, the value of this attribute
+gives the name of a user that will be granted worker-level access
+to the scheduler.
+.TP
+.B verbose
+If the value is a non-zero decimal integer,
+more events will be logged.
+.TP
+.B logstyx
+If the value of this attribute is non-zero, all Styx messages
+will be logged to the file
+.B styx.out
+in the scheduler root directory.
+.PP
+.SS "Log Files"
+Each logged event is represented by a line in the log file.
+Fields in the event are space-separated, and quoted if necessary according to the
+conventions of
+.B quoted
+in
+.IR string (2).
+The first field in each event is a time stamp, in decimal: the number of milliseconds since
+the scheduler was started. Other fields depend on the event recorded.
+If not otherwise specified,
+.I name
+gives the system name of a client node to which the
+event pertains, and
+.I addr
+its network address.
+Events include:
+.TP 10
+.B starttime \fItime\fP
+This is always the first event in a log file, and gives the ``base time'',
+the actual time that the scheduler was started, in milliseconds
+since the epoch (Jan 1st, 1970). The exact date of any event can
+is given by adding
+.I time
+to the time stamp.
+Passing all but the last three digits to
+.IR date (1)
+is useful for obtaining a human-readable version.
+.TP
+.B worker arrive \fIaddr\fP \fIuser\fP
+A client has connected from network address
+.IR addr ,
+and authenticated as
+.IR user .
+If the scheduler is being run unauthenticated
+(e.g. with
+.BR "styxlisten -A" ), 
+.I user
+will always be the user that that started the scheduler.
+.TP
+.B worker leave \fIname\fP \fIaddr\fP
+A client has disconnected.
+.TP
+.B worker name \fIname\fP \fIaddr\fP
+The scheduler has determined the
+.IR name ,
+for the client at
+.IR addr .
+.TP
+.B job new \fIid\fP
+A new job has been created.
+.I Id
+gives its unique identifier.
+.TP
+.B job complete \fIid\fP
+All the tasks in job
+.I id
+have completed.
+.TP
+.B job nomore \fIid\fP \fIerror\fP
+The task generator for job
+.I id
+has decided that it will generate no more tasks.
+.I Error
+gives the error message reported by the job (empty
+for normal termination).
+.TP
+.B sched ctl\fItag\fP \fIname\fP \fIaddr\fP \fImsg\fP
+The client
+.I name
+has written the control message
+.I msg
+to the scheduler control file.
+.I Tag
+gives a numberic tag identifying the control request.
+This message will be followed some time later with
+a
+.BI ctl tag
+message,
+reporting either an error or the control message's successful completion.
+.TP
+.B job ctl\fItag\fP \fIname\fP \fIaddr\fP \fIid\fP \fImsg\fP
+Similar to the
+.B sched ctl
+message, except the message has been written to job
+.IR id .
+.TP
+.B job report \fIid\fP \fR[\fIarg\fP...]
+A message generated by the task generator of job
+.IR id .
+.TP
+.B job delete \fIid\fP
+Job
+.I id
+has been deleted.
+.TP
+.B job clean \fIid\fP
+All the server-side processes associated with job
+.I id
+have exited.
+.TP
+.B job delete \fIid\fP
+Job
+.I id
+has been deleted.
+.TP
+.B job description \fIid\fP\fItext\fP
+Job
+.I id
+has been labeled with
+.IR text .
+.TP
+.B task open \fIname\fP \fIaddr\fP
+A client is trying to open the task file.
+.TP
+.B task new \fIname\fP \fIaddr\fP \fItaskid\fP \fIdeadline\fP
+A new task,
+.IR taskid ,
+has been allocated to the client
+.IR name .
+The task's deadline is \fIdeadline\fP seconds hence.
+.TP
+.B task restart \fIname\fP \fIaddr\fP \fItaskid\fP \fIdeadline\fP
+Task
+.I taskid
+has been restarted. The fields are the same as for
+.BR "task new" .
+.TP
+.B task nomore \fItaskid\fP \fIerror\fP
+Task
+.I taskid
+has been permanently failed.
+.I Error
+gives the reason.
+.TP
+.B task notstarted \fIname\ addr\ taskid\ error\fP
+Task
+.I taskid
+has not been started on client \fIname\fP
+because of \fIerror\fP.
+This message is only generated in verbose mode.
+.TP
+.B task nottwice \fIname\ addr\ taskid\fP
+The scheduler refuses to start the same task
+twice in a row on the same node.
+.TP
+.B task end \fIhow\ name\ ipaddr\ taskid\ duration\ \fR[\fPinfo\fR]...
+Task
+.IR taskid ,
+processed by
+.I name
+has finished.
+.I Duration
+gives the length of time taken to process the task, in milliseconds.
+.I How
+describes the final status of the task, including:
+.RS
+.TP
+.B ok
+The task completed successfully.
+.TP
+.B redundant
+The task was surplus to requirements for some reason.
+.TP
+.B error
+The task yielded an error.
+.I Info
+gives a description of the error.
+.TP
+.B error-stopped
+The task was stopped.
+.TP
+.B disconnect
+The task finished, but has the potential to reconnect later.
+.RE
+.TP
+.B ctl \fIname\ addr\ request\fP
+A scheduler control request has been executed
+by the client named
+.IR name ,
+with network address
+.IR addr .
+.I Request
+gives the actual text of the request.
+.TP
+.B job ctl \fIname\ addr\ jobid\ request\fP
+A job control request has been executed. Same as the
+.B ctl
+event, except
+.I jobid
+gives the unique id of the job that the request
+was executed on.
+.TP
+.B task new \fIname\ addr\ taskid\ tgid\ instanceid\fP
+A task has been handed out to client
+.IR name ,
+with network address
+.IR addr .
+.I Taskid
+identifies the task;
+.I tgid
+gives the task generator's idea of the task id.
+The same task may be handed out to several clients;
+.I instanceid
+uniquely identifies this particular task execution.
+.TP
+.B task reconnect \fIname\ addr\ taskid\ tgid\ instanceid\fP
+A client has reconnected to a task. The fields are the same as
+those above.
+.TP
+.B task end \fIname\ addr\ taskid\ tgid\ instanceid\ how\fP
+A task instance has finished. All fields but the last are the same
+as for
+.BR task start .
+The last field indicates the status of the task. Possible values include
+.B redundant
+(the job has already completed),
+.B ok
+(the task completed successfully),
+.B dup
+(another client has already completed the task),
+.B fail \fIreason\fP
+(the task failed because of
+.IR reason ),
+.B disconnect
+(the client has disconnected, but might reconnect again
+in the future),
+and
+.B drop
+(the client has disconnected from a task that has already completed).
+.TP
+.B task fail \fItaskid\ tgid\fP
+A task has failed for good (for instance, because it has previously
+failed too many times).
+.TP
+.B dump \fIpath\fP
+The scheduler's state has been dumped to the file
+.IR path .
+.TP
+.B dnslookup failed \fIaddr\ error\fP
+A DNS reverse lookup of network address
+.I addr
+has failed, with error
+.IR error .
+.TP
+.B mem \fIarena\ current\ nalloc\ nfree\fP
+The current status of a memory arena.
+.I Arena
+gives the name of the arena (e.g.
+.BR heap );
+.I current gives the number of bytes currently in use;
+.I nalloc
+and
+.I nfree
+give the number of allocations and number of frees
+respectively.
+.TP
+.B debug \fR[\fIarg\fP...]
+An event logged as a result of the
+.B -v
+option.
+.SH SOURCE
+.B /appl/cmd/scheduler/scheduler.b
+.SH "SEE ALSO"
+.IR owen-scheduler (4)

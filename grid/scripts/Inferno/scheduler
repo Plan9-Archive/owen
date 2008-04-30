@@ -1,0 +1,96 @@
+#!/dis/sh
+load std arg sexprs
+
+fn usage {
+	echo 'usage: scheduler [-n] [configfile]' >[1=2]
+	raise usage
+}
+
+ftest -e /net/cs || ndb/cs
+run /lib/sh/owen
+
+opts=()
+configfile=()
+arg n {opts=-n} - $*
+configfile=$*
+
+root=/grid/master
+adminid = schedaddr = schedfsaddr = schedrxaddr = auth = keyfile = ()
+
+readconfig {
+	(if
+		{~ $attr adminid} {
+			adminid=$val
+		}
+		{~ $attr auth} {
+			if{~ $val 0}{
+				auth=-A
+			}
+		}
+		{~ $attr keyfile} {
+			keyfile=-k $val
+		}
+		{~ $attr root} {
+			root=$val
+		}
+		{~ $attr schedaddr} {
+			schedaddr=$val
+		}
+		{~ $attr schedfsaddr} {
+			schedfsaddr=$val
+		}
+		{~ $attr schedrxaddr} {
+			schedrxaddr=$val
+		}
+	)
+}
+
+if{! no $auth && no $keyfile}{
+	keyfile=(-k $root/key)
+}
+
+if{no $schedaddr}{
+	ifs:=' 
+	'
+	schedaddr=`{cat $root/schedaddr}
+	if{no $schedaddr}{
+		echo no scheduler address found >[1=2]
+		raise 'no scheduler address'
+	}
+}
+
+if{! no $adminid}{
+	fn listen {
+		(addr cmd) := $*
+		builtin listen $keyfile $addr {
+			load std
+			if{~ $user $adminid} {
+				$cmd &
+			}
+		}
+	}
+} {
+	fn listen {
+		(addr cmd) := $*
+		builtin listen $auth $keyfile $addr {$cmd &}
+	}
+}
+
+{
+	# Set up listeners for monitor & debugging
+	if{~ $#schedfsaddr 1}{
+		listen $schedfsaddr {export /}
+	}
+
+	if{~ $#schedrxaddr 1}{
+		listen $schedrxaddr {
+			echo got rx connection, net is \$net >[1=2]
+			mount -A $net/data /n/remote
+			bind -b /n/remote/dev /dev
+			sh -i < /dev/cons > /dev/cons >[2] /dev/cons
+		}
+	}
+
+	echo +++++++++++++++++ start `{date}
+	styxlisten -h $auth $keyfile $schedaddr owen/scheduler $opts $configfile
+}

@@ -1,0 +1,34 @@
+load std
+
+# load a job. result is the new job id.
+subfn job {
+	{
+		id := "{read}
+		result=$id
+		or {echo ${quote load $*} >[1=0]} {
+			raise 'load failed'
+		}
+	} $* <> /n/remote/admin/clone
+}
+
+# load a job. print the new job id.
+fn job {
+	echo ${job $*}
+}
+
+# send a control message to a job.
+fn ctl {
+	if {~ $#* 0 1} {
+		echo usage: job id ctl... >[1=2]
+		raise usage
+	}
+	(id args) := $*
+	echo ${quote $args} > /n/remote/admin/$id/ctl
+}
+
+# load a job, then start it.
+fn start {
+	id := ${job $*}
+	ctl $id start
+	echo $id
+}

@@ -1,0 +1,231 @@
+.TH OWEN-JOB 4 Grid
+.SH NAME
+owen: job \- generic data-oriented task generator
+.SH SYNOPSIS
+.B job
+.I spec
+.SH DESCRIPTION
+.I Job
+is a
+.I "task generator"
+for the Inferno grid scheduler (see
+.IR owen-scheduler (1)
+and
+.IR owen-scheduler (4))
+that allows the specification of a job
+in terms of its file and value inputs.
+It is started, as with other task generators, by
+writing a
+.B load
+control message to a new job's
+.B ctl
+file in the scheduler namespace.
+The
+.I spec
+argument gives details of the job to be performed.
+It is formatted as an S-expression (see
+.IR sexprs (6)).
+All S-expressions in
+.I spec
+begin with a string naming the type of object
+expressed, followed by any components required by the object.
+The top level object must be of type
+.BR job ;
+this contains a number of objects
+giving details of the task to be performed.
+These include:
+.TP 10
+.B (task\ \fIname\fP\ \fR[\fParg\fR...]\f5)
+.I Name
+is the task type to be run on the worker nodes,
+with the given arguments.
+.I Name
+selects the specification
+.BI /grid/worker/ name .job
+on the worker; see
+.IR owen-job (6)
+for details.
+(A worker without a specification for
+.I name
+will not attempt to run the task.)
+.TP
+.B (output\ \fIkind\fP)
+By default all output from the task is placed in
+a file named after the task number; if
+.I kind
+is
+.BR bundle ,
+the task's current working directory will be bundled
+up and unbundled in a directory similarly named
+after the task number.
+.TP
+.B (file\ (path\ \fIpath\f5)\ \fR[\f5(name\ \fIname\f5)\fR]\ [\f5(size\ \fIn\f5)\fR]\ [\f5(split\ \fIhow\f5)\fR]\ [\f5(kind\ \fIkind\fP)\fR]\f5)
+.B File
+specifies some file input data for the task.
+All fields except
+.B path
+are optional.
+.RS
+.TF split
+.PD
+.TP
+.B path
+gives the pathname to the file.
+Note that this is interpreted in the
+scheduler's namespace, not the namespace of the program writing
+the control request.
+.TP
+.B name
+provides a shell environment
+.I name
+by which the worker can refer to the file.
+Conventionally on the worker, when running a task,
+an environment variable
+.BI $ name
+is set to the path name
+of the file on the worker.
+If not given, the last element of
+.I path
+is used.
+.TP
+.B size
+gives the size that will be taken up by the file when in use
+on the workers. By default, this is just the size of the file.
+.TP
+.B split
+specifies that the file should be split into multiple sections;
+each piece will be allocated a separate task.
+.I How
+gives the split method; currently only
+.B lines
+(the file is split at every newline character) and
+.B files
+(the file must be a directory; each file in the directory is treated as one section)
+are supported.
+If
+.B split
+is not given, the whole file is given to each task, as static data.
+.TP
+.B kind
+describes how the file should be treated at the worker.
+It may be
+.B data
+(the default; the file is used verbatim),
+.B stdin
+(the file is passed as standard input to the task)
+and
+.B bundle
+(the file must be a directory; it is bundled up and unarchived
+at the worker).
+.RE
+.TP
+.B (value\ \fIname\fP\ \fIvalue\fP)
+.B Value
+gives a value parameter for the task.
+Conventionally, a worker executing a task
+will set the environment variable
+.BI $ name
+to
+.IR value .
+If
+.I value
+is not a simple string, it is an expression
+representing many values, each one of which is allocated
+a task. Currently this may be one of
+.BR (range\ \fR[\fIfrom\fR]\fI\ to\ \fR[\fIby\fR]\f5) ,
+or
+.B (for\ \fIvalue\ \fR[\fIvalue\fR...]\f5).
+In the
+.B range
+form, the values are decimal values starting at
+.I from
+(default: 0)
+at increments of
+.I by
+(default: 1)
+up to
+.IR to-1 .
+Thus,
+\fB(range "10")\fP
+generates the values 0 to 9.
+In the
+.B for
+form, each
+.I value
+is used in turn.
+.TP
+.B (script\ \fIname\fP\ \fR[\fIarg\fR...]\f5)
+.B Script
+allows a job specification to name a shell script
+(see
+.IR sh (1))
+that can define shell functions to be invoked to verify task output
+and to finalise each task.
+If the scheduler is running with its ``root'' directory
+set to
+.I root
+(conventionally
+.BR /grid/master ),
+the script should be named
+.IB root / name .jobscript\fR.
+The script will be run on the scheduler at the start of the job
+to define one or both of the following functions.
+.RS
+.PP
+If
+.I name
+defines a function called
+.BR verify ,
+that function will be called every time a task has completed
+to verify that the task has completed successfully.
+Its first argument gives the name of the file or directory
+containing the task's output.
+If
+.B verify
+returns false, the task is deemed to have failed on that node;
+it will be scheduled to be retried on that or another node later.
+.PP
+If
+.I name
+defines a function called
+.BR finalise ,
+that function will be called when a task has been deemed
+successfully complete; its first argument names the task's
+output, as for
+.BR verify .
+The environment variable
+.B $taskid
+is also set to the task's identifier, unique within the job.
+.RE
+.PP
+If more than one split file or multi-value
+.B value
+object is given, then a task will be allocated
+for every combination. Tasks are numbered sequentially
+from zero. If the scheduler's ``root'' directory
+is
+.I root
+(conventionally
+.BR /grid/master ),
+the output of the job will be found in
+.IB root /work/ uniq . jobid\fR,
+where
+.I uniq
+is a random string of digits representing a particular run
+of the scheduler, and
+.I jobid
+is the job number allocated to the job by the scheduler,
+as shown on the job monitor.
+.SH SOURCE
+.B /appl/cmd/scheduler/jobgen.b
+.SH EXAMPLE
+A job specification that gives each line in the
+file
+.BR /tmp/jobinput
+as input to the task
+.BR sometask :
+.EX
+(job (file (path /tmp/jobinput) (split lines)) (task sometask))
+.EE
+.SH SEE ALSO
+.IR owen-scheduler (4)

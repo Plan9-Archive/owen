@@ -1,0 +1,50 @@
+load std expr string echo
+
+# questions:
+# - where do we store attributes?
+# - how do we get emu to replace itself?
+# - how do we specify predicates to (for example) only install Nt emu on windows systems?
+# - do we store a spare copy of the install file so we can check the old md5sum, for instance?
+# - logging on clients?
+
+ATTRFILE = /grid/slave/version
+
+fn fail {
+	echo -n $*
+	echo update failed: $* >[1=2]
+	raise failed
+}
+
+fn runtask {
+	(pkg md5sum version action args) := $*
+	cat > pkg.bun.gz
+	txsum := `{md5sum < pkg.bun.gz}
+	if{! ~ $md5sum $txsum}{
+		fail transfer corrupted $md5sum $txsum
+	}
+	if {~ $action install installreboot} {
+		dir := ()
+		if{no $args}{
+			dir = $root/data/$pkg
+		} {
+			dir = ${hd $args}
+		}
+		if{! {gunzip < pkg.bun.gz | fs write $dir {unbundle -}}} {
+			fail unpack failed: $status
+		}
+		echo -n '' >[1=0]
+		if{~ $action installreboot} {
+			echo ${quote version_^$pkg $md5sum^.^$version} >> $root/version
+			echo halt > /dev/sysctl
+		} {~ $action install} {
+		}
+	} {
+		fail unknown update action ${quote $*}
+	}
+}
+
+fn submit {
+}
+
+fn killtask {
+}

@@ -1,0 +1,191 @@
+.TH OWEN-JOBMONITOR 1
+.SH NAME
+jobmonitor \- a graphical interface for monitoring and controlling the scheduler
+.SH SYNOPSIS
+.B scheduler/jobmonitor
+[
+.B -A
+] [
+.BI -a " nsecs"
+] [
+.BI -j " path"
+]
+.I scheduleraddress
+[
+.I importpath
+]
+.SH DESCRIPTION
+.I Jobmonitor
+provides a graphical interface for viewing and controlling the state of the
+.IR owen-scheduler (1),
+with respect to the current jobs being executed.
+.PP
+.I Jobmonitor
+takes several command line parameters:
+.PP
+.TF
+.TP 8
+.B -A
+Do not use authentication when connecting to the scheduler
+.TP
+.BI -a " nsecs"
+Sets the time delay for the automatic refresh
+.TP
+.BI -j " path"
+Specifies any additional paths which contain configuration files for new scheduler jobs (the jobmonitor always looks in
+.BR /grid/master ).
+These files are named
+.IR jobtype ".new"
+and contain information about the parameters required to start a new job of type
+.IR jobtype .
+.PD
+.PP
+The 
+.I scheduleraddress
+parameter is the address of the scheduler as a 
+.IR sys-dial (2)
+string.
+.PP
+The optional
+.I importpath
+parameter specifies an address (as a
+.IR sys-dial (2)
+string) that the scheduler exports its local file system on. When this is used, the jobmonitor can mount it and see local files such as job configuration files or data files which are to be used in a job.
+.PP
+The
+.I jobmonitor
+window is split into three main frames, described in turn below.
+.SS "Control Frame"
+This is located at the top of the window.
+The
+.B new
+button provides a list of job types that the
+.I jobmonitor
+knows how to start. Selecting one of these will pop up a dialog box requesting the parameters required to start the job.
+Clicking the 
+.B refresh
+button will cause the 
+.I jobmonitor
+to reread the status of the jobs running on the scheduler and refresh the display accordingly.
+The rest of the buttons in the control frame are (from left to right) start job, stop job, delete job, raise job priority, lower job priority.
+.SS "Jobs Frame"
+The jobs frame displays a list of all jobs known to the scheduler, along with their current status and position in the queue. Jobs may be sorted in the display by clicking on the relevant column heading.
+.SS "Job Information Frame"
+Once a job has been clicked on within the 
+jobs frame,
+the job information frame
+displays further information about the selected job. This includes: number of tasks in the job, number of tasks completed, remaining, processing and failed as well as time elapsed and predicted time to completion. The button on the right hand side can be used to toggle the readout for tasks completed and remaining between a percentile and numeric display.
+.SH JOB CONFIGURATION FILES
+The
+.I jobmonitor
+needs to have a job configuration file for each type of job the user wishes to be able to start from within it. These files tell the
+.I jobmonitor
+what arguments are required in order to start the job. Each file is named
+.IB jobtype ".new"
+where
+.I jobtype
+is the name of the type of job.
+By convention, these files are found in
+.B /grid/master
+but using the
+.B -j
+option, the user can tell the
+.I jobmonitor
+to look in other directories as well. Each file has the following format:
+.IP
+.BI jobconfig: " jobtype"
+.br
+.BI pre: " prereq"
+.br
+.I args
+.br
+.BI preopt: " prereq"
+.br
+.I args
+.br
+.BI cmd: " command"
+.br
+.I args
+.br
+.PP
+where
+.I jobtype
+is the type of job. Both the
+.B 'pre:'
+and
+.B 'preopt:'
+clauses are optional. If present, a
+.B pre:
+clause will require the user to enter a prerequisite for each job of that type whereas
+.B preopt:
+allows the user to optionally specifiy a prerequisite. The
+.I prereq
+and
+.I command
+strings specify a fixed string which will appear before the arguments in the final command that is written to the scheduler. Each clause then takes a string of arguments, one per line, which specify what parameters the user will be required to enter for the prerequisite or command. When the command and prerequisites are written to the scheduler, the arguments will be written in the order they appear within the clause. Each argument takes one of the following forms:
+.PP
+.RS
+.PD 0
+.TP
+.BI int " argdesc opt argprefix \fR[\fPmin max\fR]\fP"
+.TP
+.BI path " argdesc opt argprefix \fR[\fPdefaultpath \fR[\fPext \fR ...]\fP"
+.TP
+.BI string " argdesc opt argprefix"
+.PD
+.RE
+.PP
+where
+.TP 14
+.I argdesc
+a textual description of the argument, to appear in the new job window.
+.TP
+.I opt
+is
+.B 1
+if the argument is optional and
+.B 0
+otherwise.
+.TP
+.I argprefix
+is any option that should precede the argument value e.g.
+.BR -n ;
+if no prefix is required, 
+.I argprefix
+should be set to
+.BR '' .
+.TP
+.I min
+the minimum value for an integer argument.
+.TP
+.I max
+the maximum value for an integer argument.
+.TP
+.I defaultpath
+is the default path for a path argument
+.TP
+.I ext
+is a valid file extension (suffix) for a path argument. If not specified, all files will be displayed in the browse window.
+.PD
+.PP
+The configuration file for a text analysis job might look like the following example:
+.IP
+.EX
+jobconfig: Text Analysis
+preopt: match
+string	'Match1'	0 ''
+string	'Match2'	0 ''
+cmd: scriptgen text
+int		'Letter Tuples'  0 '-l' 2 5
+string	'Filter' 1 '-f'
+path		'Text File' 0 '' /grid/inferno/data txt rtf
+.EE
+.SH SOURCE
+.B /appl/cmd/scheduler/monitor/jobmonitor.b
+.br
+.B /appl/cmd/scheduler/monitor/browser.b
+.br
+.B /appl/cmd/scheduler/monitor/common.b
+.SH SEE ALSO 
+.IR owen-scheduler (1),
+.IR owen-scheduler (4)

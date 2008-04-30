@@ -1,0 +1,4 @@
+(schedaddr "tcp!doppio!infsched")
+(schedfsaddr "tcp!doppio!1234")
+(auth "1")
+(keyfile "/grid/master/key")

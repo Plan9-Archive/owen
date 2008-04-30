@@ -1,0 +1,8 @@
+(job
+	(static
+		(file (type bundle) (compressed) (size 20m) /grid/master/gold/auxfiles.bun.gz)
+		(file 1C83_dock.pdb)
+	)
+	(taskdata (index sdfindex) (file ligands.sdf))
+	(taskargs test md5sum "{...."})
+)

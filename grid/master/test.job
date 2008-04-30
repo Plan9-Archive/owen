@@ -1,0 +1,72 @@
+load std echo
+
+fn mkjob {
+	(ntasks *) := $*
+	if{no $ntasks}{
+		raise 'usage: mkjob ntasks [arg...]'
+	}
+	echo $"* > args
+	echo $ntasks > ntasks
+}
+
+fn mktask {
+	taskid := $1
+
+	taskdir := prep$taskid
+	mkdir $taskdir
+	echo This is task $taskid > $taskdir/data
+	cat args >> $taskdir/data
+}
+
+fn runtask {
+	or{~ $#* 4}{
+		raise 'usage: runtask taskid uniq1 attrs nodeattrs'
+	}
+	(taskid uniq1 attrs nodeattrs) := $*
+
+	taskdir := prep$taskid
+	cd $taskdir
+	echo -n $taskid
+	check puttar data
+}
+
+fn submit {
+	taskid := $1
+	uniq2 := $2
+
+	taskdir := prep$taskid
+	cd $taskdir
+	cat > $uniq2
+	nr := `{lstar < $uniq2 | grep '^\./results' | wc -l}
+	if{~ $nr 0}{
+		raise 'no results found'
+	}
+	status=''
+}
+
+fn endtask {
+	(taskid uniq2 *) := $*
+	if{or {no $taskid}{no $uniq2}}{
+		raise 'usage: endtask taskid uniq2'
+	}
+
+	taskdir := prep$taskid
+	cd $taskdir
+	check {gettar < $uniq2}
+	rm $uniq2
+	if {ftest -f results} {
+		rm data
+	}
+	cd ..
+	mv $taskdir done$taskid
+}
+
+fn failedtask {
+	taskid := $1
+
+	mv prep$taskid failed$taskid
+}
+
+fn check {
+	or {$*} {s := $status; echo ${quote $*} failed: $status; raise $status}
+}

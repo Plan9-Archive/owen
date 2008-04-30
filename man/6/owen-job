@@ -1,0 +1,125 @@
+.TH OWEN-JOB 6
+.SH NAME
+owen: job \- scripts for job definition
+.SH SYNOPSIS
+.BI /grid/master/ name .job
+.br
+.BI /grid/slave/ name .job
+.br
+.BI /grid/slave/tasks/ name .job
+.SH DESCRIPTION
+.IR Owen-scheduler (1)
+provides a labour exchange for distributed computation.
+Each computation is presented as a
+.I job
+of a given type,
+and each job is subdivided into smaller computational steps called
+.IR tasks ,
+each typically doing the same computation but using different
+input data for each task.
+Given a suitable task, a client machine (called a
+.I worker
+in this context),
+does the computation requested on the data for that task,
+and returns the status and any output to the scheduler.
+The whole process can be configured in application-specific ways
+at various points on both worker and scheduler.
+The highest level is the job definition, which can have one or two parts,
+one on the scheduler and one on the worker.
+There must always be one on the worker.
+It is linked through the scheduler's name space to the scheduler's
+.IR owen-taskgenerator (2)
+for the job type.
+Many job types use the task generator called
+.IR scriptgen ,
+which requires an additional job definition on the scheduler.
+In both cases, the job definitions are libraries of
+.IR sh (1)
+functions that are invoked at specific points in job and task processing,
+as follows.
+.SS Scheduler
+The scheduler part of a job definition for job type
+.I name
+is stored in
+.BI /grid/master/ name .job
+in the scheduler's name space.
+If the task generator is
+.IR scriptgen ,
+the job definition
+defines the following functions to implement the task:
+.TP
+.BI mkjob " args ..."
+.TP
+.BI mktask " taskid"
+.TP
+.BI runtask " taskid runid attrs"
+.TP
+.BI submit " taskid runid"
+.TP
+.BI endtask " taskid runid"
+.TP
+.BI failedtask " taskid"
+.TP
+.B complete
+.PP
+The job definition used by
+.I jobgen
+(see
+.IR owen-job (4))
+is simpler because the task generator implements a fixed pattern of job,
+where the task takes input from one or more files, processes it, and produces output in
+one or more files.
+Its job definition
+uses only the following functions:
+.TP
+.B verify
+.TP
+.B finalise
+.\" complete is not implemented
+.\".TP
+.\".B complete
+.PP
+Both functions are optional; if either is not defined,
+.I jobgen
+performs the corresponding default action.
+.SS Worker
+The worker part of a job definition for job type
+.I name
+is stored in
+.BI /grid/slave/ name .job
+in the worker's name space.
+Its functions are invoked by
+.BR scheduler/worker ,
+which is the overall controller for clients.
+It can define the following functions to implement the task:
+.TP
+.BI runtask "arg ..."
+(Must be defined)
+.TP
+.B submit "arg ..."
+(Must be defined)
+.TP
+.B killtask
+If the scheduler stops (kills) the task,
+the worker kills all processes currently executing the task,
+and then invokes
+.B killtask
+to perform any extra housekeeping required before notifying
+the scheduler that the task has been stopped.
+(Optional)
+.TP
+.BI exclusive " \fR[\fP arg ... \fR]\fP"
+Predicate that should return true if the task is
+.I exclusive
+for the given job arguments:
+when that task is running on the current node, no other tasks may run.
+Ordinarily a node can run as many tasks as there are processors on the node, subject to any other job or task constraints.
+(Optional)
+.PP
+A worker will not be given a task for which it lacks a job definition.
+.SH SEE ALSO
+.IR owen-intro (1),
+.IR owen-scheduler (1),
+.IR owen-taskgenerator (2),
+.IR owen-tggeneric (2),
+.IR owen-scheduler (4)

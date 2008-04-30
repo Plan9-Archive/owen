@@ -1,0 +1,99 @@
+.TH OWEN-NODEMONITOR 1
+.SH NAME
+nodemonitor \- a graphical interface for administering the nodes connected to the scheduler
+.SH SYNOPSIS
+.B scheduler/nodemonitor
+[
+.B -A
+] [
+.BI -a " nsecs"
+] [
+.BI -d " ndays"
+]
+.I scheduleraddress
+
+.SH DESCRIPTION
+.I Nodemonitor
+provides a graphical interface for viewing and controlling the nodes connected to the
+.IR owen-scheduler (1),
+
+.PP
+.I Nodemonitor
+takes several command line parameters:
+.PP
+.TF
+.TP 8
+.B -A
+Do not use authentication when connecting to the scheduler
+.TP
+.BI -a " nsecs"
+Sets the time delay for the automatic refresh
+.TP
+.BI -d " ndays"
+Sets the number of days a node has to remain disconnected before it is marked as 'dead'
+.TP
+.PD
+
+.PP
+The 
+.I scheduleraddress
+parameter is the address of the scheduler as a 
+.IR sys-dial (2)
+string.
+.PP
+The
+.I nodemonitor
+window is split into four main frames, described in turn below.
+.SS "Nodes Frame"
+This main frame displays a list of known nodes along with various information regarding the node such as IP address and any tasks currently executing on the node. The monitor icon for each node has a blue screen if the node is currently connected, a black screen if it is not connected and a red screen if the node has not connected for a period of time greater than that specified with the 
+.B -d
+command line option (default is 5 days). Any nodes which are excluded from the global group are displayed with the node information in grey rather than black. Nodes with a yellow warning triangle on the icon have been blacklisted for repeatedly failing tasks. To un-blacklist a node, select it and click the include in global group button in the control frame.
+.PP
+Multiple nodes may be selected using mouse buttons 2 or 3.
+
+.SS "Control Frame"
+This is located at the top right of the window. The first three buttons in this frame are as follows:
+.PP
+.TF
+.TP 12
+.B "Include node"
+Includes and unblacklists all selected nodes.
+.TP
+.B "Exclude node"
+Removes selected nodes from the global group. Excluded nodes will not be given any work by the scheduler.
+.TP
+.B "Delete node"
+Deletes the selected nodes. Only disconnected or dead nodes can be deleted. Deleting a node does not prevent it from reconnecting to the scheduler - a deleted node will reappear if it connects to the scheduler again.
+.PD
+.PP
+Clicking the 
+.B refresh
+button will cause the 
+.I nodemonitor
+to reread the status of the nodes connected to the scheduler and refresh the display accordingly. The
+.B auto
+checkbutton turns on the automatic refresh which performs the refresh every
+.I n
+seconds as specified from the command line (default: 20 seconds).
+
+.SS "Group Control Frame"
+This frame is used to view and edit job groups. Each job group contains a list of nodes which may be given tasks for that job. By default a job group contains all nodes. To exclude or include nodes from a particular job group, select the required nodes in the nodes frame, then click on the current job number and select the desired number from the drop down menu. Finally, click 'Add to group' or 'Remove from group'. The user is then asked whether changes to the job group should be made immediately or after the selected nodes have finished processing their current tasks.
+.PP
+As well as controlling the job groups, this frame is also used for the group display settings. To use a different display option that the default 'Show all nodes', click the radio button below and click on the 'group nodes' text. From the menu that appears select a display option; 
+.B "group nodes"
+are nodes in the job group of the currently selected job and 
+.B "running nodes"
+are nodes currently executing one or more tasks for the selected job.
+
+.SS "Node Information Frame"
+When a single node is selected in the nodes frame, further information about that node is displayed here. Currently, the operating system version and a list of packages installed on the node along with each package version number.
+
+.SH SOURCE
+.B /appl/cmd/scheduler/monitor/nodemonitor.b
+.br
+.B /appl/cmd/scheduler/monitor/browser.b
+.br
+.B /appl/cmd/scheduler/monitor/common.b
+.SH SEE ALSO
+.IR owen-scheduler (1),
+.IR owen-scheduler (4)

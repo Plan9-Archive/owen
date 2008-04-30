@@ -1,0 +1,7 @@
+jobconfig: Image
+cmd: script image
+string 'Create Addr' 1 ''
+string 'Cons. Addr' 1 '' 
+string 'Tray' 	0 ''
+int 	'wait' 	0 ''	1000	20000
+
